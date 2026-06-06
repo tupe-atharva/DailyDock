@@ -11,3 +11,4 @@ frontend/.env
 
 # OS
 .DS_Store
+backend/dailydock.egg-info/
