@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react"
 import axios from "axios"
 
@@ -153,7 +154,6 @@ function ScheduleCard() {
           {showForm ? "Cancel" : "+ Add Class"}
         </button>
       </div>
-
       {showForm && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5 bg-gray-800 p-4 rounded-xl">
           {["course_name", "course_code", "professor", "location", "start_time", "end_time"].map(field => (
@@ -174,7 +174,6 @@ function ScheduleCard() {
           </button>
         </div>
       )}
-
       <div className="flex gap-2 mb-4 flex-wrap">
         {DAYS.map(day => (
           <button key={day} onClick={() => setSelectedDay(day)}
@@ -183,7 +182,6 @@ function ScheduleCard() {
           </button>
         ))}
       </div>
-
       {filtered.length === 0 ? (
         <p className="text-gray-500 text-sm">No classes on {selectedDay}</p>
       ) : (
@@ -211,6 +209,63 @@ function ScheduleCard() {
   )
 }
 
+function CalendarCard() {
+  const [events, setEvents] = useState(null)
+  const [authed, setAuthed] = useState(true)
+
+  useEffect(() => {
+    axios.get(`${API}/calendar/events`).then(res => {
+      if (res.data.error === "not_authenticated") {
+        setAuthed(false)
+      } else {
+        setEvents(res.data)
+      }
+    })
+  }, [])
+
+  const formatTime = (iso) => {
+    if (!iso) return ""
+    if (iso.length === 10) return iso
+    return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
+  const formatDate = (iso) => {
+    if (!iso) return ""
+    return new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
+  }
+
+  if (!authed) return (
+    <div className="bg-gray-900 rounded-2xl p-5 col-span-full">
+      <h2 className="text-lg font-semibold mb-3 text-gray-400">My Calendar</h2>
+      <p className="text-gray-500 text-sm mb-3">Connect your Google Calendar to see upcoming events and work shifts.</p>
+      <a href="http://localhost:8000/api/calendar/login"
+        className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-xl inline-block">
+        Connect Google Calendar
+      </a>
+    </div>
+  )
+
+  if (!events) return <div className="bg-gray-900 rounded-2xl p-5 col-span-full">Loading calendar...</div>
+
+  return (
+    <div className="bg-gray-900 rounded-2xl p-5 col-span-full">
+      <h2 className="text-lg font-semibold mb-4 text-gray-400">Upcoming Events & Shifts</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {events.map((e, i) => (
+          <div key={i} className="bg-gray-800 rounded-xl p-4">
+            <p className="font-semibold">{e.title}</p>
+            <p className="text-blue-400 text-sm mt-1">{formatDate(e.start)}</p>
+            <p className="text-gray-400 text-sm">
+              {formatTime(e.start)} {e.end ? `– ${formatTime(e.end)}` : ""}
+            </p>
+            {e.location && <p className="text-gray-500 text-xs mt-1">📍 {e.location}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <div className="min-h-screen bg-gray-950 text-white p-6">
@@ -220,6 +275,7 @@ export default function App() {
         <ShuttleCard />
         <DiningCard />
         <ScheduleCard />
+        <CalendarCard />
       </div>
     </div>
   )
