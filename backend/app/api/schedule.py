@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.db.database import get_db
 from app.models.schedule import ClassSchedule
+from app.api.auth import get_current_user
+from app.models.user import User
 
 router = APIRouter()
 
@@ -16,8 +18,8 @@ class ClassInput(BaseModel):
     end_time: str
 
 @router.get("/schedule")
-def get_schedule(db: Session = Depends(get_db)):
-    classes = db.query(ClassSchedule).all()
+def get_schedule(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    classes = db.query(ClassSchedule).filter(ClassSchedule.user_id == current_user.id).all()
     return [
         {
             "id": c.id,
@@ -33,16 +35,16 @@ def get_schedule(db: Session = Depends(get_db)):
     ]
 
 @router.post("/schedule")
-def add_class(data: ClassInput, db: Session = Depends(get_db)):
-    new_class = ClassSchedule(**data.dict())
+def add_class(data: ClassInput, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    new_class = ClassSchedule(**data.dict(), user_id=current_user.id)
     db.add(new_class)
     db.commit()
     db.refresh(new_class)
     return {"message": "Class added", "id": new_class.id}
 
 @router.delete("/schedule/{class_id}")
-def delete_class(class_id: int, db: Session = Depends(get_db)):
-    c = db.query(ClassSchedule).filter(ClassSchedule.id == class_id).first()
+def delete_class(class_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    c = db.query(ClassSchedule).filter(ClassSchedule.id == class_id, ClassSchedule.user_id == current_user.id).first()
     if not c:
         raise HTTPException(status_code=404, detail="Class not found")
     db.delete(c)

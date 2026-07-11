@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.database import get_db
@@ -7,10 +8,11 @@ router = APIRouter()
 
 @router.get("/shuttles")
 def get_shuttles(db: Session = Depends(get_db)):
-    shuttles = scrape_shuttles(db)
+    results = scrape_shuttles(db)
     return [
         {
             "route_id": s.route_id,
+            "route_name": name,
             "equipment_id": s.equipment_id,
             "lat": s.lat,
             "lng": s.lng,
@@ -20,5 +22,5 @@ def get_shuttles(db: Session = Depends(get_db)):
             "in_service": s.in_service,
             "fetched_at": s.fetched_at
         }
-        for s in shuttles
+        for s, name in results
     ]

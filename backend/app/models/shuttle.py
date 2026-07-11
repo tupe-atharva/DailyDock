@@ -1,3 +1,4 @@
+
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.sql import func
 from app.db.database import Base
@@ -7,6 +8,7 @@ class Shuttle(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     route_id = Column(Integer, nullable=False)
+    route_name = Column(String(100), nullable=True)
     equipment_id = Column(String(20), nullable=False)
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)

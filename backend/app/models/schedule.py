@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from app.db.database import Base
 
@@ -6,6 +6,7 @@ class ClassSchedule(Base):
     __tablename__ = "class_schedule"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     course_name = Column(String(200), nullable=False)
     course_code = Column(String(50), nullable=False)
     professor = Column(String(100), nullable=True)
