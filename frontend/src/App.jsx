@@ -4,9 +4,9 @@ import axios from "axios"
 import Login from "./Login"
 
 const API = "http://127.0.0.1:8000/api"
-const TABS = ["timeline", "shuttle", "weather", "dining", "calendar"]
-const TAB_ICONS = { timeline: "📅", shuttle: "🚌", weather: "🌤", dining: "🍽", calendar: "🗓" }
-const TAB_LABELS = { timeline: "Schedule", shuttle: "Shuttle", weather: "Weather", dining: "Dining", calendar: "Calendar" }
+const TABS = ["schedule", "timeline", "shuttle", "weather", "dining"]
+const TAB_ICONS = { schedule: "📚", timeline: "📅", shuttle: "🚌", weather: "🌤", dining: "🍽" }
+const TAB_LABELS = { schedule: "Classes", timeline: "Timeline", shuttle: "Shuttle", weather: "Weather", dining: "Dining" }
 
 const TAG_COLORS = {
   class:    { pill: "bg-indigo-100 text-indigo-700 border-indigo-200",    bar: "bg-indigo-400",  dark: "bg-indigo-900 text-indigo-300 border-indigo-700" },
@@ -20,7 +20,7 @@ const DOODLES = [
   { emoji: "👾", x: 5,  y: 8,  size: 28, dur: 7  },
   { emoji: "🌀", x: 88, y: 5,  size: 22, dur: 9  },
   { emoji: "⭐", x: 15, y: 75, size: 18, dur: 6  },
-  { emoji: "��", x: 80, y: 70, size: 30, dur: 11 },
+  { emoji: "🐙", x: 80, y: 70, size: 30, dur: 11 },
   { emoji: "🌙", x: 50, y: 3,  size: 20, dur: 8  },
   { emoji: "💫", x: 92, y: 40, size: 16, dur: 7  },
   { emoji: "🎮", x: 3,  y: 45, size: 24, dur: 10 },
@@ -73,6 +73,15 @@ function minutesToLabel(mins) {
   const ampm = h >= 12 ? "PM" : "AM"
   const display = h % 12 === 0 ? 12 : h % 12
   return `${display}:${m.toString().padStart(2, "0")} ${ampm}`
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371e3
+  const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180
+  const dp = (lat2 - lat1) * Math.PI / 180
+  const dl = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 const DAY_MINS = 24 * 60
@@ -137,7 +146,7 @@ function Header({ dark, setDark, user, logout }) {
   )
 }
 
-function Timeline({ classes, calendarEvents, dark }) {
+function Timeline({ classes, calendarEvents, dark, showList = true }) {
   const now = useTime()
   const scrollRef = useRef(null)
   const dragRef = useRef(null)
@@ -153,13 +162,18 @@ function Timeline({ classes, calendarEvents, dark }) {
   useEffect(() => { localStorage.setItem("dd_tasks", JSON.stringify(tasks)) }, [tasks])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      const nowMins = now.getHours() * 60 + now.getMinutes()
-      scrollRef.current.scrollLeft = Math.max(0, nowMins * PX_PER_MIN - 120)
-    }
-  }, [])
+  if (scrollRef.current) {
+    const today = new Date()
+    const startOfWeek = new Date(today)
+    startOfWeek.setHours(0, 0, 0, 0)
+    const dayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1
+    const nowMins = dayIndex * DAY_MINS + today.getHours() * 60 + today.getMinutes()
+    scrollRef.current.scrollLeft = Math.max(0, nowMins * PX_PER_MIN - 120)
+  }
+}, [])
 
-  const nowMins = now.getHours() * 60 + now.getMinutes()
+  const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1
+  const nowMins = dayIndex * DAY_MINS + now.getHours() * 60 + now.getMinutes()  
 
   const classItems = classes.map(c => ({
     id: `class-${c.id}`, title: c.course_name, tag: "class",
@@ -279,6 +293,7 @@ function Timeline({ classes, calendarEvents, dark }) {
           </div>
         </div>
       </div>
+
       {showForm && (
         <div className={`mt-4 rounded-2xl p-4 border ${dark ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
           <p className={`text-xs font-semibold mb-3 ${dark ? "text-gray-400" : "text-gray-500"}`}>
@@ -310,38 +325,8 @@ function Timeline({ classes, calendarEvents, dark }) {
           </div>
         </div>
       )}
-      {allItems.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {allItems.sort((a, b) => a.start_min - b.start_min).map(task => (
-            <div key={task.id} className={`flex items-center gap-3 rounded-xl px-4 py-2.5 ${dark ? "bg-gray-800" : "bg-gray-50"}`}>
-              <div className={`w-2 h-2 rounded-full shrink-0 ${barClass(task.tag)}`} />
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${dark ? "text-white" : "text-gray-800"}`}>{task.title}</p>
-                {task.location && <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>📍 {task.location}</p>}
-              </div>
-              <p className={`text-xs shrink-0 ${dark ? "text-gray-500" : "text-gray-400"}`}>
-                {minutesToLabel(task.start_min)} – {minutesToLabel(task.end_min)}
-              </p>
-              <span className={`text-xs px-2 py-0.5 rounded-full border shrink-0 ${pillClass(task.tag)}`}>{task.tag}</span>
-              {!task.readonly && (
-                <button onClick={() => setTasks(p => p.filter(t => t.id !== task.id))}
-                  className={`text-xs ${dark ? "text-gray-600 hover:text-red-400" : "text-gray-300 hover:text-red-400"}`}>✕</button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
     </Card>
   )
-}
-
-function haversine(lat1, lng1, lat2, lng2) {
-  const R = 6371e3
-  const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180
-  const dp = (lat2 - lat1) * Math.PI / 180
-  const dl = (lng2 - lng1) * Math.PI / 180
-  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 function ShuttleCard({ dark }) {
@@ -499,7 +484,7 @@ function DiningCard({ dark }) {
   const btn = (active) => active ? "bg-indigo-500 text-white" : (dark ? "bg-gray-800 text-gray-400 hover:bg-gray-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200")
   return (
     <Card dark={dark}>
-      <CardTitle dark={dark}>�� Dining Hall</CardTitle>
+      <CardTitle dark={dark}>🍽 Dining Hall</CardTitle>
       <div className="flex gap-2 flex-wrap mb-2">
         {halls.map(h => <button key={h} onClick={() => setHall(h)} className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${hall === h ? "bg-emerald-500 text-white" : btn(false)}`}>{h}</button>)}
       </div>
@@ -530,21 +515,145 @@ function CalendarCard({ dark, authHeaders }) {
   const formatTime = iso => !iso || iso.length === 10 ? "All day" : new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   const formatDate = iso => new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })
 
-  if (!events) return <Card dark={dark} className="col-span-full"><p className={`text-sm ${dark ? "text-gray-600" : "text-gray-300"}`}>Loading calendar...</p></Card>
+  if (!events) return (
+    <Card dark={dark} className="col-span-full">
+      <p className={`text-sm ${dark ? "text-gray-600" : "text-gray-300"}`}>Loading calendar...</p>
+    </Card>
+  )
+
+  const now = new Date()
+  const in24hrs = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  const filtered = events.filter(e => {
+    if (e.title === "Office") return false
+    const eventTime = new Date(e.start)
+    return eventTime >= now && eventTime <= in24hrs
+  })
 
   return (
     <Card dark={dark} className="col-span-full">
-      <CardTitle dark={dark}>🗓 Upcoming Events & Shifts</CardTitle>
-      {events.length === 0 ? (
-        <p className={`text-sm ${dark ? "text-gray-500" : "text-gray-400"}`}>No upcoming events</p>
+      <CardTitle dark={dark}>🗓 Next 24 Hours</CardTitle>
+      {filtered.length === 0 ? (
+        <p className={`text-sm ${dark ? "text-gray-500" : "text-gray-400"}`}>Nothing scheduled in the next 24 hours</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {events.filter(e => e.title !== "Office").map((e, i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {filtered.map((e, i) => (
             <div key={i} className={`border rounded-2xl p-4 ${dark ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-100"}`}>
               <p className={`font-bold text-sm ${dark ? "text-white" : "text-gray-900"}`}>{e.title}</p>
               <p className="text-indigo-500 text-xs mt-1 font-medium">{formatDate(e.start)}</p>
               <p className={`text-xs ${dark ? "text-gray-500" : "text-gray-400"}`}>{formatTime(e.start)} – {formatTime(e.end)}</p>
               {e.location && <p className={`text-xs mt-1 ${dark ? "text-gray-500" : "text-gray-400"}`}>📍 {e.location}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function ScheduleCard({ dark, authHeaders }) {
+  const [classes, setClasses] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+  const [selectedDay, setSelectedDay] = useState(DAYS[Math.max(0, new Date().getDay() - 1)])
+  const [form, setForm] = useState({
+    course_name: "", course_code: "", professor: "",
+    location: "", day_of_week: "Monday", start_time: "", end_time: ""
+  })
+
+  const fetchClasses = () => {
+    axios.get(`${API}/schedule`, { headers: authHeaders }).then(res => setClasses(res.data)).catch(() => {})
+  }
+
+  useEffect(() => { fetchClasses() }, [authHeaders?.Authorization])
+
+  const handleAdd = () => {
+    if (!form.course_name || !form.start_time || !form.end_time) return
+    axios.post(`${API}/schedule`, form, { headers: authHeaders }).then(() => {
+      fetchClasses()
+      setShowForm(false)
+      setForm({ course_name: "", course_code: "", professor: "", location: "", day_of_week: "Monday", start_time: "", end_time: "" })
+    })
+  }
+
+  const handleDelete = (id) => {
+    axios.delete(`${API}/schedule/${id}`, { headers: authHeaders }).then(fetchClasses)
+  }
+
+  const filtered = classes.filter(c => c.day_of_week === selectedDay)
+
+  return (
+    <Card dark={dark} className="col-span-full">
+      <div className="flex justify-between items-center mb-4">
+        <p className={`text-xs font-bold uppercase tracking-widest ${dark ? "text-gray-500" : "text-gray-400"}`}>📚 Class Schedule</p>
+        <button onClick={() => setShowForm(!showForm)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-4 py-2 rounded-xl font-semibold transition-colors">
+          {showForm ? "Cancel" : "+ Add Class"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className={`rounded-2xl p-4 border mb-4 ${dark ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+            {[
+              { key: "course_name", placeholder: "Course name *" },
+              { key: "course_code", placeholder: "Course code (e.g. CS 511)" },
+              { key: "professor", placeholder: "Professor" },
+              { key: "location", placeholder: "Location (e.g. CW 101)" },
+              { key: "start_time", placeholder: "Start time (e.g. 9:45 AM)" },
+              { key: "end_time", placeholder: "End time (e.g. 11:00 AM)" },
+            ].map(({ key, placeholder }) => (
+              <input key={key} placeholder={placeholder} value={form[key]}
+                onChange={e => setForm({ ...form, [key]: e.target.value })}
+                className={`rounded-xl px-3 py-2 text-sm outline-none border focus:ring-2 focus:ring-indigo-400
+                  ${key === "course_name" ? "col-span-2 md:col-span-1" : ""}
+                  ${dark ? "bg-gray-700 border-gray-600 text-white placeholder-gray-500" : "bg-white border-gray-200 text-gray-900 placeholder-gray-400"}`} />
+            ))}
+            <select value={form.day_of_week}
+              onChange={e => setForm({ ...form, day_of_week: e.target.value })}
+              className={`rounded-xl px-3 py-2 text-sm outline-none border focus:ring-2 focus:ring-indigo-400
+                ${dark ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-200 text-gray-900"}`}>
+              {DAYS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+          <button onClick={handleAdd}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-5 py-2 rounded-xl font-semibold transition-colors">
+            Save Class
+          </button>
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {DAYS.map(day => (
+          <button key={day} onClick={() => setSelectedDay(day)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all
+              ${selectedDay === day ? "bg-indigo-600 text-white" : (dark ? "bg-gray-800 text-gray-400 hover:bg-gray-700" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}`}>
+            {day.slice(0, 3)}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-3xl mb-2">📚</p>
+          <p className={`text-sm ${dark ? "text-gray-500" : "text-gray-400"}`}>No classes on {selectedDay}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.sort((a, b) => a.start_time.localeCompare(b.start_time)).map(c => (
+            <div key={c.id} className={`border rounded-2xl p-4 ${dark ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-100"}`}>
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <p className={`font-bold text-sm ${dark ? "text-white" : "text-gray-900"}`}>{c.course_name}</p>
+                  <p className="text-indigo-500 text-xs mt-0.5">{c.course_code}</p>
+                </div>
+                <button onClick={() => handleDelete(c.id)}
+                  className={`text-xs transition-colors ${dark ? "text-gray-600 hover:text-red-400" : "text-gray-300 hover:text-red-400"}`}>✕</button>
+              </div>
+              <div className={`space-y-1 text-xs ${dark ? "text-gray-400" : "text-gray-500"}`}>
+                {c.professor && <p>👤 {c.professor}</p>}
+                {c.location && <p>📍 {c.location}</p>}
+                <p>🕐 {c.start_time} – {c.end_time}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -570,7 +679,6 @@ function BottomBar({ active, setActive, dark }) {
   )
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard({ dark, setDark, token, onLogout }) {
   const [user, setUser] = useState(null)
   const [activeTab, setActiveTab] = useState("timeline")
@@ -601,19 +709,28 @@ function Dashboard({ dark, setDark, token, onLogout }) {
       <FloatingDoodles dark={dark} />
       <div className="max-w-6xl mx-auto pb-28 md:pb-10">
         <Header dark={dark} setDark={setDark} user={user} logout={onLogout} />
-        <div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 px-5">
-          <Timeline classes={classes} calendarEvents={calendarEvents} {...props} />
-          <ShuttleCard {...props} />
-          <WeatherCard {...props} />
-          <DiningCard {...props} />
+
+        {/* Desktop layout */}
+        <div className="hidden md:flex md:flex-col gap-5 px-5">
+          <Timeline classes={classes} calendarEvents={calendarEvents} dark={dark} showList={false} />
+          <div className="grid grid-cols-3 gap-5">
+            <ShuttleCard {...props} />
+            <WeatherCard {...props} />
+            <DiningCard {...props} />
+          </div>
           <CalendarCard {...props} />
+          <ScheduleCard dark={dark} authHeaders={authHeaders} />
         </div>
+
+        {/* Mobile layout */}
         <div className="md:hidden px-4">
-          {activeTab === "timeline" && <Timeline classes={classes} calendarEvents={calendarEvents} {...props} />}
+          {activeTab === "timeline" && <Timeline classes={classes} calendarEvents={calendarEvents} dark={dark} showList={false} />}
           {activeTab === "shuttle" && <ShuttleCard {...props} />}
           {activeTab === "weather" && <WeatherCard {...props} />}
           {activeTab === "dining" && <DiningCard {...props} />}
           {activeTab === "calendar" && <CalendarCard {...props} />}
+          {activeTab === "calendar" && <CalendarCard {...props} />}
+          {activeTab === "timeline" && <ScheduleCard dark={dark} authHeaders={authHeaders} />}
         </div>
       </div>
       <BottomBar active={activeTab} setActive={setActiveTab} dark={dark} />
@@ -621,11 +738,9 @@ function Dashboard({ dark, setDark, token, onLogout }) {
   )
 }
 
-// ── App root ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [dark, setDark] = useState(false)
   const [token, setToken] = useState(() => {
-    // Check URL params first on initial load
     const params = new URLSearchParams(window.location.search)
     const urlToken = params.get("token")
     if (urlToken) {
