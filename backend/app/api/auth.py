@@ -23,11 +23,21 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly"
 ]
 
-CREDENTIALS_FILE = os.path.join(os.path.dirname(__file__), "../../credentials.json")
 JWT_SECRET = os.getenv("JWT_SECRET", "fallback_secret")
 ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24
-REDIRECT_URI = "http://localhost:8000/api/auth/callback"
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/callback")
+
+CLIENT_CONFIG = {
+    "web": {
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "redirect_uris": [REDIRECT_URI],
+    }
+}
 
 flow_store = {}
 
@@ -54,8 +64,8 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     return user
 
 def get_flow():
-    return Flow.from_client_secrets_file(
-        CREDENTIALS_FILE, scopes=SCOPES, redirect_uri=REDIRECT_URI
+    return Flow.from_client_config(
+        CLIENT_CONFIG, scopes=SCOPES, redirect_uri=REDIRECT_URI
     )
 
 @router.get("/auth/login")
@@ -86,7 +96,7 @@ def auth_callback(request: Request, code: str, state: str, db: Session = Depends
         print("CALLBACK: token fetched successfully")
     except Exception as e:
         print(f"CALLBACK ERROR fetching token: {e}")
-        return RedirectResponse(f"http://localhost:5173/login?error=token_failed")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=token_failed")
 
     creds = flow.credentials
 
@@ -96,7 +106,7 @@ def auth_callback(request: Request, code: str, state: str, db: Session = Depends
         print(f"CALLBACK: got user info: {info.get('email')}")
     except Exception as e:
         print(f"CALLBACK ERROR getting user info: {e}")
-        return RedirectResponse(f"http://localhost:5173/login?error=userinfo_failed")
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=userinfo_failed")
 
     google_id = info["id"]
     email = info["email"]
@@ -118,7 +128,7 @@ def auth_callback(request: Request, code: str, state: str, db: Session = Depends
 
     token = make_jwt(user.id, user.email)
     print(f"CALLBACK: JWT created, redirecting to frontend")
-    return RedirectResponse(f"http://localhost:5173?token={token}")
+    return RedirectResponse(f"{FRONTEND_URL}?token={token}")
 
 @router.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):

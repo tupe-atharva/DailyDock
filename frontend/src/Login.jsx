@@ -20,6 +20,8 @@ const DOODLES = [
   { emoji: "🍦", x: 55,  y: 50, size: 20, dur: 7  },
 ]
 
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api"
+
 export default function Login({ dark, setDark }) {
   const navigate = useNavigate()
   const [error, setError] = useState(null)
@@ -91,7 +93,7 @@ export default function Login({ dark, setDark }) {
         )}
 
         {/* Login button */}
-        <a href="http://localhost:8000/api/auth/login"
+        <a href={`${API}/auth/login`}
           className="w-full flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-2xl transition-all shadow-lg shadow-indigo-200 text-sm">
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

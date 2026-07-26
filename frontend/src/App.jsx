@@ -3,7 +3,7 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom"
 import axios from "axios"
 import Login from "./Login"
 
-const API = "http://127.0.0.1:8000/api"
+const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api"
 const TABS = ["schedule", "timeline", "shuttle", "weather", "dining"]
 const TAB_ICONS = { schedule: "📚", timeline: "📅", shuttle: "🚌", weather: "🌤", dining: "🍽" }
 const TAB_LABELS = { schedule: "Classes", timeline: "Timeline", shuttle: "Shuttle", weather: "Weather", dining: "Dining" }
